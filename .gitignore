@@ -5,6 +5,7 @@ Aardium/.env
 **/.ionide/
 Aardium/node_modules
 Aardium/dist
+Aardium/build/dotnet
 Aardium/yarn-error.log
 /.paket/Paket.Restore.targets
 /.paket/paket.exe
@@ -18,3 +19,4 @@ bin/*
 /node_modules/.yarn-integrity
 **/.idea
 *.DotSettings.user
+**/CREDITS.MD
