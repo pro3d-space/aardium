@@ -1,23 +1,23 @@
 {
-  "name": "Aardium",
-  "productName": "Aardium",
-  "version": "3.0.2",
-  "description": "A minimal Electron app for Aardvark",
-  "license": "MIT",
+  "name": "pro3d-viewer",
+  "productName": "PRo3D Viewer",
+  "desktopName": "space.pro3d.app.desktop",
+  "version": "5.9.0-prerelease1",
+  "description": "PRo3D, short for Planetary Robotics 3D Viewer, is an interactive 3D visualization tool to allow planetary scientists to work with high-resolution 3D reconstructions of the Martian surface.",
+  "license": "AGPL",
+  "copyright": "VRVis Zentrum für Virtual Reality und Visualisierung Forschungs-GmbH",
   "author": {
-    "name": "The Aardvark Platform Team",
-    "url": "http://aardvarkians.com"
+    "name": "The PRo3D Team",
+    "url": "https://pro3d.space/"
   },
   "scripts": {
     "postinstall": "electron-rebuild node-shared-mem",
-    "build": "node scripts/build.js",
-    "build:win32:x64": "npm run build -- --platform=win32 --arch=x64",
-    "build:linux:x64": "npm run build -- --platform=linux --arch=x64 && cd dist/Aardium-linux-x64 && tar -zcvf ../Aardium-Linux-x64.tar.gz .",
-    "build:darwin:arm64": "npm run build -- --platform=darwin --arch=arm64 && cd dist/Aardium-darwin-arm64 && tar -zcvf ../Aardium-Darwin-arm64.tar.gz .",
-    "build:darwin:x64": "npm run build -- --platform=darwin --arch=x64 && cd dist/Aardium-darwin-x64 && tar -zcvf ../Aardium-Darwin-x64.tar.gz ."
+    "build": "electron-builder",
+    "publish": "electron-builder --publish always",
+    "signbuild": "bash ./scripts/signbuild.sh"
   },
   "main": "main.js",
-  "repository": "https://github.com/aardvark-community/aardium",
+  "repository": "https://github.com/pro3d-space/PRo3D",
   "dependencies": {
     "@electron/remote": "^2.1.0",
     "electron-localshortcut": "^3.2.1",
@@ -30,21 +30,72 @@
     "dotenv": "^17.4.2",
     "electron": "42.3.0",
     "@electron/notarize": "^3.1.1",
-    "@electron/packager": "^20.0.0"
+    "electron-builder": "^26.15.3"
   },
   "build": {
-    "appId": "com.aardvarkians.aardium",
+    "appId": "space.pro3d.app",
+    "buildVersion": "${version}",
+    "artifactName": "PRo3D.Viewer-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "files": [
+      "**/*",
+      "!scripts${/*}"
+    ],
+    "extraFiles": [
+      "build/dotnet"
+    ],
+    "extraResources": [
+      "build/icon.*"
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "target": ["nsis", "zip"]
+    },
+    "nsis": {
+      "artifactName": "PRo3D.Viewer-${version}-${os}-${arch}-Setup.${ext}",
+      "installerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "deleteAppDataOnUninstall": true,
+      "differentialPackage": false
+    },
     "mac": {
-      "category": "your.app.category.type",
+      "icon": "icon.icns",
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.education",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "notarize": true
     },
-    "buildDependenciesFromSource": true,
-    "afterSign": "scripts/notarize.js"
+    "dmg": {
+      "writeUpdateInfo": false
+    },
+    "linux": {
+      "icon": "icon.png",
+      "target": ["AppImage", "zip"],
+      "syncDesktopName": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "pro3d-space",
+        "repo": "PRo3D",
+        "releaseType": "draft",
+        "publishAutoUpdate": false
+      }
+    ],
+    "fileAssociations": [
+      {
+        "name": "PRo3D scene",
+        "description": "PRo3D scene which references OPC data",
+        "ext": "pro3d"
+      }
+    ],
+    "buildDependenciesFromSource": true
   },
   "allowScripts": {
-    "node-shared-mem": true
+    "node-shared-mem": true,
+    "electron-winstaller": true
   }
 }

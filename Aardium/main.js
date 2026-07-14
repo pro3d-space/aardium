@@ -1,7 +1,12 @@
 require('@electron/remote/main').initialize()
 
 const electron = require('electron');
+const os = require('os');
+const fs = require('fs');
+const proc = require('child_process');
+const readline = require('readline');
 const app = electron.app;
+const screen = electron.screen;
 const dialog = electron.dialog;
 const BrowserWindow = electron.BrowserWindow;
 const electronLocalShortcut = require('electron-localshortcut');
@@ -36,17 +41,17 @@ const availableOptions =
 ];
 
 const defaultIcon =
-  (process.platform === 'linux') ? "aardvark.png" :
-  (process.platform === 'darwin') ? "aardvark_128.png" : "aardvark.ico";
+  (process.platform === 'linux') ? "icon.png" :
+  (process.platform === 'darwin') ? "icon.png" : "icon.ico";
 
 const config = {
   url: new URL("about:blank"),
-  width: 1024,
-  height: 768,
+  width: 1280,
+  height: 867,
   minWidth: 0,
   minHeight: 0,
   icon: path.join(__dirname, defaultIcon),
-  title: "Aardvark rocks \\o/",
+  title: app.getName(),
   preventTitleChange: true,
   menu: false,
   hideDock: false,
@@ -480,7 +485,89 @@ function ready() {
       }
     });
 
-    createMainWindow();
+    // Launch the Pro3D .NET process, show the splash screen and create the main window
+    // once the server is running (signalled via stdout)
+    const binaryName = os.platform() === 'win32' ? 'PRo3D.Viewer.exe' : 'PRo3D.Viewer';
+    const binaryPath = path.join(path.dirname(process.resourcesPath), 'build', 'dotnet', binaryName);
+
+    if (fs.existsSync(binaryPath)) {
+      const SPLASH_WIDTH = 640;
+      const SPLASH_HEIGHT = 300;
+
+      // Definindo centro da tela principal
+      const bounds = screen.getPrimaryDisplay().bounds;
+      const centerX = bounds.x + Math.floor((bounds.width - SPLASH_WIDTH) / 2);
+      const centerY = bounds.y + Math.floor((bounds.height - SPLASH_HEIGHT) / 2);
+
+      const splash =
+        new BrowserWindow({
+          icon: config.icon,
+          title: config.title,
+          width: SPLASH_WIDTH,
+          height: SPLASH_HEIGHT,
+          x: centerX,
+          y: centerY,
+          frame: false,
+          transparent: true,
+          webPreferences : {  devTools: false }
+        });
+
+      splash.loadURL(`file://${__dirname}/src/splash.html`);
+      splash.once('ready-to-show', () => { splash.show(); });
+
+      const runningProcess = proc.spawn(binaryPath, ['--server', ...process.argv.slice(1)]);
+
+      runningProcess.on('close', (code, signal) => {
+        if (signal) {
+          console.log(`.NET process was forcefully killed by signal: ${signal}`);
+        } else {
+          console.error(`.NET process exited with code: ${code}`);
+        }
+        app.exit(code);
+      });
+
+      // Read .NET process stdout line-by-line
+      const outputReader = readline.createInterface({
+        input: runningProcess.stdout,
+        terminal: false
+      });
+
+      outputReader.on('line', (line) => {
+        if (!mainWindow) {
+          const url = line.match(/.*url:[ \t]+(.*)$/);
+
+          if (url) {
+            config.url = url[1];
+            console.log('URL: ' + config.url);
+            createMainWindow();
+            mainWindow.once('ready-to-show', () => { splash.close(); });
+            outputReader.close();
+          }
+        }
+      });
+
+      // Pipe stdout and stderr
+      runningProcess.stdout.on('data', (chunk) => {
+        const data = chunk.toString();
+        process.stdout?.write(data);
+      });
+
+      runningProcess.stderr.on('data', (chunk) => {
+        const data = chunk.toString();
+        process.stderr?.write(data);
+      });
+
+    } else {
+      dialog.showMessageBoxSync(null, {
+        type: 'error',
+        title: 'Missing Component',
+        message: 'PRo3D binary not found.',
+        detail: `Binary '${binaryPath}' does not exist.\n\nThe application cannot continue without this file.`,
+        buttons: ['OK'],
+        defaultId: 0
+      });
+      app.exit(1);
+    }
 
     // Quit when all windows are closed.
     app.on('window-all-closed', function () {
