@@ -20,16 +20,17 @@
   "repository": "https://github.com/pro3d-space/PRo3D",
   "dependencies": {
     "@electron/remote": "^2.1.0",
+    "adm-zip": "^0.6.0",
     "electron-localshortcut": "^3.2.1",
     "node-getopt": "^0.3.2",
     "node-shared-mem": "^2.1.0",
     "ws": "^8.20.1"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@electron/rebuild": "^4.0.4",
     "dotenv": "^17.4.2",
     "electron": "42.3.0",
-    "@electron/notarize": "^3.1.1",
     "electron-builder": "^26.15.3"
   },
   "build": {
@@ -49,7 +50,10 @@
     ],
     "win": {
       "icon": "icon.ico",
-      "target": ["nsis", "zip"]
+      "target": [
+        "nsis",
+        "zip"
+      ]
     },
     "nsis": {
       "artifactName": "PRo3D.Viewer-${version}-${os}-${arch}-Setup.${ext}",
@@ -60,7 +64,10 @@
     },
     "mac": {
       "icon": "icon.icns",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.education",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -73,7 +80,10 @@
     },
     "linux": {
       "icon": "icon.png",
-      "target": ["AppImage", "zip"],
+      "target": [
+        "AppImage",
+        "zip"
+      ],
       "syncDesktopName": true
     },
     "publish": [
