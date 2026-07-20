@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="report-dialog.css">
+</head>
+<body>
+  <div class="container">
+    <h1 id="title" class="title"></h1>
+    <p id="subtitle"></p>
+
+    <div class="form-group">
+      <label id="userContextLabel" for="userContext"></label>
+      <textarea id="userContext" rows="3" autofocus></textarea>
+    </div>
+
+    <div class="accordion-box">
+      <button class="accordion-header" id="btnToggleAccordion">Technical Details</button>
+      <pre id="detailsView"></pre>
+    </div>
+
+    <div class="footer-controls">
+      <div id="statusRibbon" class="status-ribbon hidden">
+        <div class="ribbon-icon"></div>
+        <div class="ribbon-body">
+          <span id="ribbonText" class="ribbon-text"></span>
+          <div id="ribbonActions" class="ribbon-actions">
+            <button class="btn-ribbon" id="btnGitHub">GitHub</button>
+            <button class="btn-ribbon" id="btnEmail">Email</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-secondary" id="btnCopy">Copy</button>
+        <button class="btn-primary" id="btnSave">Save Report (.zip)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="report-dialog.js"></script>
+</body>
+</html>

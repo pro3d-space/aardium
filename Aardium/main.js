@@ -8,10 +8,12 @@ const readline = require('readline');
 const app = electron.app;
 const screen = electron.screen;
 const dialog = electron.dialog;
+const ipcMain = electron.ipcMain;
 const BrowserWindow = electron.BrowserWindow;
 const electronLocalShortcut = require('electron-localshortcut');
 
 const path = require('path');
+const report = require(path.join(__dirname, 'src', 'report.js'))
 const getopt = require('node-getopt');
 const { WebSocket, WebSocketServer } = require('ws');
 
@@ -25,6 +27,7 @@ const availableOptions =
   ['d' , 'hideDock'               , 'hides dock toolback on mac'],
   [''  , 'fullscreen'             , 'display fullscreen window'],
   [''  , 'multiwindow'            , 'minimize and restore child windows with their parent'],
+  [''  , 'disable-error-report'   , 'disable error detection and report dialogs'],
 ];
 
 const defaultIcon =
@@ -49,6 +52,7 @@ const config = {
   maximize: true,
   multiwindow: false,
   openExternal: false,
+  errorReport: true,
   debug: false,
   windowOptions: {},
   webPreferences: {}
@@ -90,6 +94,7 @@ function parseOptions(argv) {
   if (opt['open-external-urls']) config.openExternal = true;
   if (opt.maximize) config.maximize = true;
   if (opt.multiwindow) config.multiwindow = true;
+  if (opt['disable-error-report']) config.errorReport = false;
   if (opt.dev) config.debug = true;
   if (opt.menu) config.menu = true;
   if (opt.hideDock) config.hideDock = true;
@@ -478,6 +483,7 @@ function ready() {
     const binaryPath = path.join(path.dirname(process.resourcesPath), 'build', 'dotnet', binaryName);
 
     if (fs.existsSync(binaryPath)) {
+      // Splash window
       const SPLASH_WIDTH = 640;
       const SPLASH_HEIGHT = 300;
 
@@ -496,13 +502,64 @@ function ready() {
           y: centerY,
           frame: false,
           transparent: true,
-          webPreferences : {  devTools: false }
+          webPreferences : { devTools: false, contextIsolation: true, nodeIntegration: false }
         });
 
       splash.loadURL(`file://${__dirname}/src/splash.html`);
       splash.once('ready-to-show', () => { splash.show(); });
 
+      // Crash detection and reporter
+      let logFilePath;
+      let activeError = null;
+
+      function showReportDialog(type, data) {
+        const parent = (type !== 'crash') ? mainWindow : null;
+        const window = report.showReportDialog(parent, type, { ...data, logFilePath, title: config.title, icon: config.icon });
+
+        if (type === 'crash' && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.close();
+        }
+
+        if (window && type === 'crash') {
+          window.on('closed', () => app.exit(data.exit.code));
+        }
+      }
+
+      async function saveZipReport(event, userNote) {
+        try {
+          const filePath = await report.saveZipReport(userNote);
+          return (filePath !== null) ? { status: 'success', filePath: filePath } : { status: 'canceled' };
+
+        } catch (error) {
+          console.error(error);
+          return { status: 'error', error: error.message || 'Unknown file system write error.' }
+        }
+      }
+
+      async function submitReport(event, method, filePath, userNote) {
+        try {
+          const url = report.getReportUrl(method, filePath, userNote);
+          await electron.shell.openExternal(url);
+          return { status: 'success'};
+
+        } catch (error) {
+          console.error(error);
+          return { status: 'error', error: error.message || 'Unknown error.' };
+        }
+      }
+
+      ipcMain.handle('get-report-dialog-data', () => report.getReportDialogData());
+      ipcMain.handle('save-zip-report', saveZipReport);
+      ipcMain.handle('submit-report', submitReport);
+      ipcMain.handle('report-issue', () => showReportDialog('issue'));
+
+      // Spawn .NET process
       const runningProcess = proc.spawn(binaryPath, ['--server', ...process.argv.slice(1)]);
+
+      app.on('before-quit', () => {
+        runningProcess.removeAllListeners('close');
+        runningProcess.kill();
+      });
 
       runningProcess.on('close', (code, signal) => {
         if (signal) {
@@ -510,7 +567,12 @@ function ready() {
         } else {
           console.error(`.NET process exited with code: ${code}`);
         }
-        app.exit(code);
+
+        if (config.errorReport && (signal || code !== 0)) {
+          showReportDialog('crash', { exit: { signal, code } });
+        } else {
+          app.exit(code);
+        }
       });
 
       // Read .NET process stdout line-by-line
@@ -521,14 +583,33 @@ function ready() {
 
       outputReader.on('line', (line) => {
         if (!mainWindow) {
-          const url = line.match(/.*url:[ \t]+(.*)$/);
+          const url = line.match(/^ELECTRON_URL:(.+)$/);
 
           if (url) {
             config.url = url[1];
             console.log('URL: ' + config.url);
             createMainWindow();
             mainWindow.once('ready-to-show', () => { splash.close(); });
-            outputReader.close();
+          }
+        }
+
+        if (!logFilePath) {
+          const file = line.match(/^ELECTRON_LOG_FILE:(.+)$/);
+          if (file) {
+            logFilePath = file[1];
+            console.log('Log file: ' + logFilePath);
+          }
+        }
+
+        if (activeError === null) {
+          if (config.errorReport && line === 'ELECTRON_ERROR_START') activeError = '';
+        } else {
+          if (line === 'ELECTRON_ERROR_END') {
+            showReportDialog('error', { error: activeError.trim() });
+            activeError = null;
+          } else {
+            const error = line.match(/^ELECTRON_ERROR:(.+)$/);
+            if (error) activeError += error[1] + '\n';
           }
         }
       });

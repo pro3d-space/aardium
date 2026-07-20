@@ -37,3 +37,5 @@ aardvark.captureFullscreen = function (path) {
 		aardvark.electron.remote.require('fs').writeFile(path, e.toPNG());
 	});
 };
+
+aardvark.showReportDialog = () => electron.ipcRenderer.invoke('report-issue');
