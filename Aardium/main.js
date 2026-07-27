@@ -5,6 +5,7 @@ const os = require('os');
 const fs = require('fs');
 const proc = require('child_process');
 const readline = require('readline');
+const { pathToFileURL } = require('url');
 const app = electron.app;
 const screen = electron.screen;
 const dialog = electron.dialog;
@@ -28,6 +29,7 @@ const availableOptions =
   [''  , 'fullscreen'             , 'display fullscreen window'],
   [''  , 'multiwindow'            , 'minimize and restore child windows with their parent'],
   [''  , 'disable-error-report'   , 'disable error detection and report dialogs'],
+  [''  , 'log-viewer'             , 'show the log viewer']
 ];
 
 const defaultIcon =
@@ -53,6 +55,7 @@ const config = {
   multiwindow: false,
   openExternal: false,
   errorReport: true,
+  logViewer: false,
   debug: false,
   windowOptions: {},
   webPreferences: {}
@@ -95,6 +98,7 @@ function parseOptions(argv) {
   if (opt.maximize) config.maximize = true;
   if (opt.multiwindow) config.multiwindow = true;
   if (opt['disable-error-report']) config.errorReport = false;
+  if (opt['log-viewer']) config.logViewer = true;
   if (opt.dev) config.debug = true;
   if (opt.menu) config.menu = true;
   if (opt.hideDock) config.hideDock = true;
@@ -558,6 +562,70 @@ function ready() {
       ipcMain.handle('submit-report', submitReport);
       ipcMain.handle('report-issue', () => showReportDialog('issue'));
 
+      // Log viewer
+      const MAX_LOG_LINES = 4000;
+      let logContent = [];
+      let logWindow = null;
+
+      async function openLogFolder() {
+        try {
+          if (!logFilePath) return;
+          const url = pathToFileURL(path.dirname(logFilePath));
+          await electron.shell.openExternal(url.href);
+
+        } catch (error) {
+          console.error(`Failed to open log file folder: ${error}`);
+        }
+      }
+
+      function showLogViewer() {
+        if (logWindow && !logWindow.isDestroyed()) {
+          if (logWindow.isMinimized) logWindow.restore();
+          logWindow.focus();
+
+        } else if (mainWindow && !mainWindow.isDestroyed()) {
+          const window =
+            new BrowserWindow({
+              icon: config.icon,
+              title: `${config.title} - Log`,
+              width: 640,
+              height: 520,
+              minWidth: 500,
+              minHeight: 450,
+              parent: mainWindow,
+              show: false,
+              skipTaskbar: true,
+              webPreferences : {
+                devTools: false,
+                contextIsolation: true,
+                nodeIntegration: false,
+                preload: path.join(__dirname, 'src', 'log-viewer-preload.js')
+              }
+            });
+
+          window.setMenu(null);
+          window.loadURL(`file://${__dirname}/src/log-viewer.html`);
+          window.once('ready-to-show', () => { window.show(); });
+          window.on('closed', () => { logWindow = null; });
+          logWindow = window;
+        }
+      }
+
+      function onLogLine(line) {
+        logContent.push(line);
+        if (logContent.length > MAX_LOG_LINES) {
+          logContent.shift();
+        }
+
+        if (logWindow && !logWindow.isDestroyed()) {
+          logWindow.webContents.send('new-log-line', line);
+        }
+      }
+
+      ipcMain.handle('get-log-data', () => ({ data: logContent, MAX_LOG_LINES }) );
+      ipcMain.handle('open-log-folder', () => openLogFolder());
+      ipcMain.handle('show-log-viewer', () => showLogViewer());
+
       // Spawn .NET process
       const runningProcess = proc.spawn(binaryPath, ['--server', ...process.argv.slice(1)]);
 
@@ -587,6 +655,8 @@ function ready() {
       });
 
       outputReader.on('line', (line) => {
+        onLogLine(line);
+
         if (!mainWindow) {
           const url = line.match(/^ELECTRON_URL:(.+)$/);
 
@@ -599,7 +669,10 @@ function ready() {
                 console.error(`Failed to load '${config.url}': ${error}`);
                 mainWindow?.close();
               })
-              .then(() => splash.close());
+              .then(() => {
+                splash.close();
+                if (config.logViewer) showLogViewer();
+              });
           }
         }
 

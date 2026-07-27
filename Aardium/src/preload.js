@@ -39,3 +39,4 @@ aardvark.captureFullscreen = function (path) {
 };
 
 aardvark.showReportDialog = () => electron.ipcRenderer.invoke('report-issue');
+aardvark.showLogViewer = () => electron.ipcRenderer.invoke('show-log-viewer');
