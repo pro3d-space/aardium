@@ -162,9 +162,6 @@ function createMainWindow () {
     app.dock.setIcon(config.icon);
   }
 
-  // and load the index.html of the app.
-  mainWindow.loadURL(config.url.toString());
-
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
     // Dereference the window object, usually you would store windows
@@ -190,8 +187,15 @@ function createMainWindow () {
     });
   }
 
-  if (config.maximize && !config.fullscreen) mainWindow.maximize();
-  mainWindow.once('ready-to-show', () => { mainWindow.show(); });
+  mainWindow.once('ready-to-show', () => {
+    if (config.maximize && !config.fullscreen) {
+      mainWindow.maximize();
+    } else {
+      mainWindow.show();
+    }
+  });
+
+  return mainWindow.loadURL(config.url.toString());
 }
 
 function runOffscreenServer(port) {
