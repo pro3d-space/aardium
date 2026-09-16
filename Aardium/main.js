@@ -120,14 +120,13 @@ function parseOptions(argv) {
   };
 }
 
-// URLs served by the PRo3D server (e.g. Golden Layout popouts at /gl-popout) must open as
-// app windows; everything else goes to the system browser. Origins include scheme and
-// port, so loopback hosts are compared by hostname.
+// URLs served by the app's own server (e.g. Golden Layout popouts at /gl-popout) open as
+// app windows; everything else goes to the system browser. Only the exact origin counts:
+// app windows get relaxed webPreferences (no web security, remote module), which must not
+// extend to other services that happen to run on this machine.
 function isLocalUrl(url) {
   try {
-    const target = new URL(url);
-    const appOrigin = new URL(config.url.toString()).origin;
-    return target.origin === appOrigin || [ 'localhost', '127.0.0.1', '[::1]' ].includes(target.hostname);
+    return (new URL(url)).origin === (new URL(config.url.toString())).origin;
 
   } catch(_) {
     return false;
