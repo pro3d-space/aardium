@@ -659,7 +659,7 @@ function ready() {
           const url = line.match(/^ELECTRON_URL:(.+)$/);
 
           if (url) {
-            config.url = url[1];
+            config.url = new URL(url[1]);
             console.log('URL: ' + config.url);
 
             createMainWindow()
