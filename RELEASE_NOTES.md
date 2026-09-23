@@ -1,5 +1,6 @@
 - Handle initialization errors with dialog
 - Make local URL check stricter; only URLs with the same origin as the server are considered local
+- Update to Electron 44.4.5
 
 ### 3.0.2
 - Made URL parsing more robust.
