@@ -121,9 +121,7 @@ function parseOptions(argv) {
 
 function isLocalUrl(url) {
   try {
-    const localOrigins = [ 'localhost', '127.0.0.1', config.url.origin ];
-    return localOrigins.includes((new URL(url)).origin);
-
+    return (new URL(url)).origin == config.url.origin;
   } catch(_) {
     return false;
   }
